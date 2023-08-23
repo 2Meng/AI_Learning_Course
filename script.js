@@ -1,5 +1,7 @@
 // Dependencies
 const { OpenAI } = require("langchain/llms/openai");
+const { PromptTemplate } = require("langchain/prompts");
+const { StructuredOutputParser } = require("langchain/output_parsers");
 const inquirer = require("inquirer");
 require("dotenv").config();
 
@@ -13,8 +15,24 @@ const model = new OpenAI({
 // Awaits the init inquirer prompt and makes a call to the openAI API
 const promptFunc = async (input) => {
   try {
-    const res = await model.call(input);
-    console.log(res);
+    // With a `StructuredOutputParser` we can define a schema for the output.
+    const parser = StructuredOutputParser.fromNamesAndDescriptions({
+      code: "Javascript code that answers the user's question",
+      explanation: "detailed explanation of the example code provided",
+    });
+    const formatInstructions = parser.getFormatInstructions();
+    // Instantiation of a new object called "prompt" using the "PromptTemplate" class
+    const prompt = new PromptTemplate({
+      template:
+        "You are a javascript expert and will answer the user's coding questions thoroughly as possible.\n{format_instructions}\n{question}",
+      inputVariables: ["question"],
+      partialVariables: { format_instructions: formatInstructions },
+    });
+    const promptInput = await prompt.format({
+      question: input,
+    });
+    const res = await model.call(promptInput);
+    console.log(await parser.parse(res));
   } catch (error) {
     console.error(error);
   }
